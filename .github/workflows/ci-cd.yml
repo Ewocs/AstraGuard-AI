@@ -10,6 +10,7 @@ env:
   DOCKER_BUILDKIT: 1
   BUILDKIT_PROGRESS: plain
   REGISTRY: ghcr.io
+  REPO_NAME_LOWER: astraguard-ai
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -175,7 +176,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ github.event.repository.name | lower }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.REPO_NAME_LOWER }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
