@@ -1,20 +1,24 @@
-# Build stage
-FROM python:3.11-slim as builder
+# ===== Stage 1: Builder =====
+FROM python:3.11-slim AS builder
 
-WORKDIR /app
+WORKDIR /build
 
-# Install system dependencies
+# Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Copy requirements first for better caching
+# Copy requirements early for caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies with CPU-only torch
+RUN pip install --no-cache-dir --only-binary=:all: \
+    --index-url https://download.pytorch.org/whl/cpu \
+    -r requirements.txt && \
+    rm -rf ~/.cache/pip /tmp/* /var/tmp/*
 
-# Runtime stage
+# ===== Stage 2: Runtime =====
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -22,26 +26,37 @@ WORKDIR /app
 # Install runtime dependencies only
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    tini \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser
 
 # Copy Python packages from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
-COPY . .
+COPY --chown=appuser:appuser . .
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV LOG_LEVEL=INFO
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    LOG_LEVEL=INFO \
+    PYTHONHASHSEED=random
 
-# Health check
-HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health/live || exit 1
+# Switch to non-root user
+USER appuser
 
-# Expose port
-EXPOSE 8000
+# Health checks
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health/live || curl -f http://localhost:8501/_stcore/health || exit 1
 
-# Run the application
+# Expose ports (FastAPI 8000, Streamlit 8501)
+EXPOSE 8000 8501
+
+# Use tini as init process
+ENTRYPOINT ["/usr/bin/tini", "--"]
+
+# Default to FastAPI
 CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
