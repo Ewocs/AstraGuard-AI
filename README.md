@@ -17,6 +17,21 @@
   **[📚 Documentation](docs/TECHNICAL.md)** | **[📄 Technical Report](docs/TECHNICAL_REPORT.md)** | **[🧪 Research Lab](research/)** | **[📝 Changelog](CHANGES.md)** | **[🐛 Report Bug](.github/ISSUE_TEMPLATE/bug_report.yml)** | **[✨ Request Feature](.github/ISSUE_TEMPLATE/feature_request.yml)**
 
 </div>
+  <br />
+</div>
+
+  <br />
+
+### Hi @team, just sharing the WhatsApp group link here for quick coordination on this thread:
+
+### Chat link:  [https://chat.whatsapp.com/HZXk0vo62945S33qTXheON](https://chat.whatsapp.com/HZXk0vo62945S33qTXheON)
+
+This is for **formal team collaboration and project discussion**.  
+No sensitive data or credentials will be shared in the group.
+
+Looking forward to smoother syncing between issues and PR reviews.
+
+</div>
 
 ---
 
