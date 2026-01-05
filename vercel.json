@@ -1,9 +1,10 @@
 # Vercel configuration for the AstraGuard AI project
 {
   "version": 2,
+  "framework": "fastapi",
   "builds": [
     {
-      "src": "api.py",
+      "src": "app.py",
       "use": "@vercel/python",
       "config": {
         "maxLambdaSize": "50mb",
@@ -11,21 +12,23 @@
       }
     },
     {
-      "src": "frontend/astraguard-ai.site",
+      "src": "frontend/astraguard-ai.site/package.json",
       "use": "@vercel/next"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "api.py"
+      "dest": "/app.py"
     },
     {
       "src": "/(.*)",
-      "dest": "frontend/astraguard-ai.site"
+      "dest": "/frontend/astraguard-ai.site/$1"
     }
   ],
   "env": {
-    "NEXT_PUBLIC_API_URL": "@api_url"
-  }
+    "NEXT_PUBLIC_API_URL": "@api_url",
+    "PYTHONPATH": "./"
+  },
+  "public": false
 }
