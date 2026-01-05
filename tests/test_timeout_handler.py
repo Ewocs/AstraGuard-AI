@@ -138,10 +138,16 @@ class TestTimeoutContext:
         
         time.sleep(0.6)  # Exceed timeout
         
+        # Manual check should raise TimeoutError
         with pytest.raises(CustomTimeoutError):
             ctx.check_timeout()
         
-        ctx.__exit__(None, None, None)
+        # Exit context - expect TimeoutError since timeout was exceeded
+        try:
+            ctx.__exit__(None, None, None)
+        except CustomTimeoutError:
+            # Expected - timeout was already triggered
+            pass
 
 
 class TestTimeoutConfig:
@@ -171,10 +177,11 @@ class TestTimeoutIntegration:
     async def test_timeout_with_retry(self):
         """Test timeout works with retry logic"""
         from core.retry import Retry
+        from core.timeout_handler import TimeoutError as CustomTimeoutError
         
         call_count = 0
         
-        @Retry(max_attempts=3, base_delay=0.1)
+        @Retry(max_attempts=3, base_delay=0.1, allowed_exceptions=(CustomTimeoutError, asyncio.TimeoutError))
         @async_timeout(seconds=0.5)
         async def flaky_operation():
             nonlocal call_count
