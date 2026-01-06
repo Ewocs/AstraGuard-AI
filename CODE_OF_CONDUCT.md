@@ -12,21 +12,13 @@ We are committed to fostering an environment that respects the dignity, rights, 
 ### Expected Behavior
 
    - All participants are expected to:
-
    - Be respectful, professional, and considerate in communication.
-
    - Focus discussions on technical merit and project goals.
-
    - Give and accept clear, direct, and constructive feedback.
-
    - Take responsibility for mistakes and work to correct them.
-
    - Respect different experience levels while maintaining high standards.
-
    - Credit sources appropriately and respect intellectual property.
-
    - Protect sensitive information and follow responsible security disclosure practices.
-
    - Act in ways that support a safe, productive, and learning-focused community.
 
 ---
@@ -59,9 +51,7 @@ If you experience or witness behavior that violates this Code of Conduct:
 Report it confidentially via:
 
   - GitHub Issues (if appropriate), or
-
   - Direct contact with project maintainers (listed in README / CONTRIBUTING)
-
   - Include relevant context, links, or evidence where possible
 
 ---
