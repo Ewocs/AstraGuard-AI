@@ -103,6 +103,9 @@ interface ContextValue {
     groundStations: GroundStation[];
     activeStation: GroundStation | null;
     switchStation: (stationId: string) => void;
+    // Atmospheric Drag
+    dragPhysics: DragPhysics;
+    executeReboost: () => void;
 }
 
 const DashboardContext = createContext<ContextValue | undefined>(undefined);
@@ -202,6 +205,9 @@ export const DashboardProvider: React.FC<{ children: ReactNode }> = ({ children 
 
     // Ground Station State
     const { groundStations, activeStation, switchStation } = useGroundStations();
+
+    // Atmospheric Drag State
+    const { physics: dragPhysics, executeReboost } = useAtmosphericDrag();
 
     const unlockAchievement = (id: string) => {
         setAchievements(prev => {
@@ -461,6 +467,8 @@ export const DashboardProvider: React.FC<{ children: ReactNode }> = ({ children 
         groundStations,
         activeStation,
         switchStation,
+        dragPhysics,
+        executeReboost,
     };
 
     return (

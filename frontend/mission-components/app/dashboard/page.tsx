@@ -45,11 +45,12 @@ import { BiometricHUD } from '../components/biometric/BiometricHUD';
 import { HighContrastOverlay } from '../components/biometric/HighContrastOverlay';
 import { AutoPilotProposal } from '../components/biometric/AutoPilotProposal';
 import { GroundStationPanel } from '../components/groundStation/GroundStationPanel';
+import { DragMetricsPanel } from '../components/mission/DragMetricsPanel';
 
 const DashboardContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'mission' | 'systems' | 'chaos' | 'uplink' | 'vault' | 'diagnostics'>('mission');
   const [selectedAnomalyForAnalysis, setSelectedAnomalyForAnalysis] = useState<AnomalyEvent | null>(null);
-  const { isConnected, togglePlay, isReplayMode, isBattleMode, setBattleMode, spaceWeather, distortionIntensity, isGeomagneticStorm, executeSystemReset, debrisObjects, closestDebris, proximityLevel, activePlaybook, setActivePlaybook, biometricData, incrementMissedAlerts, resetMissedAlerts, isAutoPilotActive, enableAutoPilot, disableAutoPilot, groundStations, activeStation, switchStation } = useDashboard();
+  const { isConnected, togglePlay, isReplayMode, isBattleMode, setBattleMode, spaceWeather, distortionIntensity, isGeomagneticStorm, executeSystemReset, debrisObjects, closestDebris, proximityLevel, activePlaybook, setActivePlaybook, biometricData, incrementMissedAlerts, resetMissedAlerts, isAutoPilotActive, enableAutoPilot, disableAutoPilot, groundStations, activeStation, switchStation, dragPhysics, executeReboost } = useDashboard();
   const [showSpaceWeatherAlert, setShowSpaceWeatherAlert] = useState(false);
   const [isRedPhoneCoverOpen, setIsRedPhoneCoverOpen] = useState(false);
   const [showProximityAlert, setShowProximityAlert] = useState(true);
@@ -218,6 +219,12 @@ const DashboardContent: React.FC = () => {
         groundStations={groundStations}
         activeStation={activeStation}
         onSwitchStation={switchStation}
+      />
+
+      {/* Atmospheric Drag Metrics */}
+      <DragMetricsPanel
+        physics={dragPhysics}
+        onReboost={executeReboost}
       />
 
       <div className="flex min-h-screen pt-[100px] lg:pt-[80px] flex-col">

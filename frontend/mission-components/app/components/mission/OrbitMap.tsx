@@ -17,7 +17,7 @@ interface Props {
 
 export const OrbitMap: React.FC<Props> = ({ satellites, selectedSat, onSatClick, anomalies }) => {
   const globeEl = useRef<any>(null);
-  const { groundStations, historicalAnomalies } = useDashboard();
+  const { groundStations, historicalAnomalies, dragPhysics } = useDashboard();
   const { setWhooshIntensity } = useSoundscape();
   const [points, setPoints] = useState<any[]>([]);
   const [arcs, setArcs] = useState<any[]>([]);
@@ -135,8 +135,30 @@ export const OrbitMap: React.FC<Props> = ({ satellites, selectedSat, onSatClick,
       color: () => gs.weather === 'Storm' ? '#f59e0b' : '#06b6d4'
     }));
 
-    return [...anomalyRings, ...stationRings];
-  }, [anomalies, satellites, groundStations]);
+    // Heat Veil (Atmospheric Drag)
+    const heatRings = (() => {
+      if (!dragPhysics || dragPhysics.altitude > 400) return [];
+
+      const sat = satellites[0]; // Assume first satellite is main for now
+      if (!sat) return [];
+      const pos = getSatellitePosition(sat);
+
+      // Intensity based on altitude (lower = more intense)
+      const intensity = Math.max(0, (400 - dragPhysics.altitude) / 200); // 0 to 1
+
+      return [{
+        lat: pos.lat,
+        lng: pos.lng,
+        alt: pos.alt,
+        maxR: 15 * intensity,
+        propagationSpeed: 20 * intensity,
+        repeatPeriod: 200, // Fast shimmer
+        color: () => t => `rgba(255, ${Math.round(100 - (intensity * 100))}, 0, ${1 - t})` // Orange/Red fade
+      }];
+    })();
+
+    return [...anomalyRings, ...stationRings, ...heatRings];
+  }, [anomalies, satellites, groundStations, dragPhysics]);
 
   const weatherEmoji = (status: string) => {
     switch (status) {
