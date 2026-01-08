@@ -8,10 +8,7 @@ interface Props {
   data: MissionState;
 }
 
-const statusIcon = (status: MissionState['status']) => {
-  const icons = { Nominal: '🟢', Degraded: '🟡', Critical: '🔴' };
-  return icons[status];
-};
+
 
 export const DashboardHeader: React.FC<Props> = ({ data }) => {
   const { isConnected } = useDashboard();
@@ -36,22 +33,48 @@ export const DashboardHeader: React.FC<Props> = ({ data }) => {
   }, []);
 
   return (
-    <header className="h-[60px] bg-black/90 border-b border-teal-500/20 flex items-center px-6 fixed w-full z-50">
-      <div className="flex items-center justify-between w-full">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-gradient-to-r from-teal-500 to-cyan-500 rounded-lg"></div>
-          <h1 className="text-lg font-bold font-mono text-white tracking-tight">{data.name}</h1>
+    <header className="sticky top-0 z-50 bg-slate-950/95 backdrop-blur-sm border-b border-slate-800">
+      <div className="flex items-center justify-between px-6 py-3">
+        {/* Left: Branding & Mission */}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center">
+              <span className="font-bold text-white">AG</span>
+            </div>
+            <div>
+              <h1 className="text-sm font-bold text-slate-100 uppercase tracking-wider">AstraGuard AI</h1>
+              <div className="text-xs text-slate-500 uppercase tracking-widest">Mission Control</div>
+            </div>
+          </div>
+
+          <div className="h-8 w-px bg-slate-800 hidden md:block" />
+
+          <div className="hidden md:block">
+            <div className="text-xs text-slate-400 uppercase">Current Mission</div>
+            <div className="text-sm font-mono font-medium text-blue-400">{data.name}</div>
+          </div>
         </div>
-        <div className="flex items-center space-x-4 text-xs text-gray-400">
-          <span className={`px-2 py-0.5 rounded-full font-mono transition-all ${isConnected
-              ? 'bg-green-500/10 text-green-400 border border-green-500/20 glow-green'
-              : 'bg-red-500/10 text-red-500 border border-red-500/20 glow-red animate-pulse'
+
+        {/* Right: Metrics Strip */}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 text-right">
+            <div>
+              <div className="text-xs text-slate-500 uppercase">Phase</div>
+              <div className="text-sm font-bold text-slate-200">{data.phase}</div>
+            </div>
+            <div className="h-8 w-px bg-slate-800" />
+            <div>
+              <div className="text-xs text-slate-500 uppercase">System Time</div>
+              <div className="text-sm font-mono text-slate-300">{time}</div>
+            </div>
+          </div>
+
+          <div className={`px-3 py-1 rounded border text-xs font-bold uppercase tracking-wider ${isConnected
+            ? 'bg-green-500/10 text-green-400 border-green-500/20'
+            : 'bg-red-500/10 text-red-400 border-red-500/20'
             }`}>
-            {isConnected ? 'LIVE' : 'OFFLINE'}
-          </span>
-          <span className="text-teal-400">{data.phase}</span>
-          <span>{statusIcon(data.status)}</span>
-          <span>{time}</span>
+            {isConnected ? 'Connected' : 'Offline'}
+          </div>
         </div>
       </div>
     </header>

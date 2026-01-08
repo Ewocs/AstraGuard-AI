@@ -1,6 +1,10 @@
-'use client';
-
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { Satellite, AnomalyEvent } from '../../types/dashboard';
+import { getSatellitePosition, SatellitePoint } from '../../utils/orbital';
+
+// Dynamically import Globe to avoid SSR issues with WebGL
+const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
 
 interface Props {
   satellites: Satellite[];
@@ -9,223 +13,173 @@ interface Props {
   anomalies: AnomalyEvent[];
 }
 
+
+// Ground Station Coordinates
+const GROUND_STATIONS = [
+  { id: 'GS-HOU', name: 'HOUSTON', lat: 29.7604, lng: -95.3698, color: '#06b6d4' },
+  { id: 'GS-LON', name: 'LONDON', lat: 51.5074, lng: -0.1278, color: '#06b6d4' },
+  { id: 'GS-TOK', name: 'TOKYO', lat: 35.6762, lng: 139.6503, color: '#06b6d4' },
+  { id: 'GS-CAN', name: 'CANBERRA', lat: -35.2809, lng: 149.1300, color: '#06b6d4' },
+];
+
 export const OrbitMap: React.FC<Props> = ({ satellites, selectedSat, onSatClick, anomalies }) => {
-  const getColorByStatus = (status: string) => {
-    switch (status) {
-      case 'Nominal':
-        return { stroke: '#00f5ff', fill: '#00f5ff' };
-      case 'Degraded':
-        return { stroke: '#facc15', fill: '#facc15' };
-      case 'Critical':
-        return { stroke: '#ef4444', fill: '#ef4444' };
-      default:
-        return { stroke: '#00f5ff', fill: '#00f5ff' };
+  const globeEl = useRef<any>(null);
+  const [points, setPoints] = useState<any[]>([]);
+  const [arcs, setArcs] = useState<any[]>([]);
+
+  // Calculate satellite positions (animation loop)
+  useEffect(() => {
+    const updatePositions = () => {
+      const satPoints = satellites.map(getSatellitePosition);
+
+      // Merge satellites with static ground stations for point rendering
+      const stationPoints = GROUND_STATIONS.map(gs => ({
+        ...gs,
+        alt: 0.01,
+        type: 'STATION',
+        status: 'ONLINE'
+      }));
+
+      // Calculate Links (Arcs)
+      const newArcs = satPoints.map(sat => {
+        // Find nearest ground station (simple euclidean approx for visual speed)
+        let nearest = GROUND_STATIONS[0];
+        let minDist = 9999;
+
+        GROUND_STATIONS.forEach(gs => {
+          const dist = Math.sqrt(Math.pow(sat.lat - gs.lat, 2) + Math.pow(sat.lng - gs.lng, 2));
+          if (dist < minDist) {
+            minDist = dist;
+            nearest = gs;
+          }
+        });
+
+        // Determine signal quality based on distance (mock horizon)
+        const isConnected = minDist < 60; // Approximate approx
+
+        return {
+          startLat: sat.lat,
+          startLng: sat.lng,
+          endLat: nearest.lat,
+          endLng: nearest.lng,
+          color: isConnected ? ['#22c55e', '#22c55e'] : ['#ef444400', '#ef444400'], // Green or Transparent
+          dashLength: 0.4,
+          dashGap: 0.2,
+          dashAnimateTime: 2000,
+          stroke: isConnected ? 0.3 : 0
+        };
+      });
+
+      setPoints([...satPoints, ...stationPoints]);
+      setArcs(newArcs);
+    };
+
+    const interval = setInterval(updatePositions, 50);
+    return () => clearInterval(interval);
+  }, [satellites]);
+
+  // Initial focus
+  useEffect(() => {
+    if (selectedSat && globeEl.current) {
+      const satPoint = getSatellitePosition(selectedSat);
+      // globeEl.current.pointOfView({ lat: satPoint.lat, lng: satPoint.lng, altitude: satPoint.alt + 0.5 }, 1000);
     }
-  };
+  }, [selectedSat]);
+
+  // Auto-rotate
+  useEffect(() => {
+    if (globeEl.current) {
+      globeEl.current.controls().autoRotate = true;
+      globeEl.current.controls().autoRotateSpeed = 0.5;
+    }
+  }, []);
+
+  const ringsData = useMemo(() => {
+    // Anomaly Rings
+    const anomalyRings = anomalies.map(anomaly => {
+      const sat = satellites.find(s => s.orbitSlot === anomaly.satellite.split('-')[1]);
+      if (!sat) return null;
+      const pos = getSatellitePosition(sat);
+      return {
+        lat: pos.lat,
+        lng: pos.lng,
+        alt: pos.alt,
+        maxR: 5,
+        propagationSpeed: 5,
+        repeatPeriod: 1000,
+        color: () => '#ef4444'
+      }
+    }).filter(Boolean);
+
+    // Ground Station Coverage Zones
+    const stationRings = GROUND_STATIONS.map(gs => ({
+      lat: gs.lat,
+      lng: gs.lng,
+      alt: 0,
+      maxR: 15, // Coverage radius
+      propagationSpeed: 0.5,
+      repeatPeriod: 2000,
+      color: () => '#06b6d4'
+    }));
+
+    return [...anomalyRings, ...stationRings];
+  }, [anomalies, satellites]);
 
   return (
-    <div className="relative w-full h-full rounded-2xl bg-black/50 backdrop-blur-xl border-2 border-teal-500/30 glow-teal p-4 flex items-center justify-center">
-      <svg viewBox="0 0 800 600" className="w-full h-full max-h-96" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <radialGradient id="earthGrad" cx="50%" cy="50%">
-            <stop offset="0%" stopColor="#1e3a8a" />
-            <stop offset="50%" stopColor="#0f172a" />
-            <stop offset="100%" stopColor="#020617" />
-          </radialGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
-            <feMerge>
-              <feMergeNode in="coloredBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <style>{`
-            @keyframes orbit { from { transform-origin: 400px 300px; transform: rotate(0deg); } to { transform-origin: 400px 300px; transform: rotate(360deg); } }
-            @keyframes pulse-ring { 0% { r: 10; opacity: 0.8; } 50% { r: 14; opacity: 0.4; } 100% { r: 10; opacity: 0.8; } }
-            .sat-icon { cursor: pointer; transition: all 0.3s ease; }
-            .sat-icon:hover { filter: drop-shadow(0 0 8px #00f5ff); }
-          `}</style>
-        </defs>
+    <div className="relative w-full h-full bg-slate-950 rounded-sm border border-slate-900 overflow-hidden flex items-center justify-center">
+      <Globe
+        ref={globeEl}
+        width={800}
+        height={400}
+        globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+        backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
+        pointsData={points}
+        pointAltitude="alt"
+        pointColor="color"
+        pointRadius={(d: any) => d.type === 'STATION' ? 0.8 : 0.5}
+        pointLabel={(d: any) => `
+            <div style="background: rgba(15, 23, 42, 0.9); padding: 8px; border: 1px solid #334155; border-radius: 4px; color: white;">
+                <div style="font-weight: bold; color: ${d.color}">${d.name}</div>
+                <div style="font-size: 11px;">${d.type === 'STATION' ? 'GROUND UPLINK' : 'SAT_ID: ' + d.id}</div>
+                <div style="font-size: 11px;">Status: ${d.status}</div>
+            </div>
+        `}
+        onPointClick={(point: any) => {
+          if (point.type !== 'STATION') {
+            const originalSat = satellites.find(s => s.id === point.id);
+            if (originalSat) onSatClick(originalSat);
+          }
+        }}
 
-        {/* Earth Gradient */}
-        <circle
-          cx="400"
-          cy="300"
-          r="140"
-          fill="url(#earthGrad)"
-          stroke="#00f5ff"
-          strokeWidth="2"
-          filter="url(#glow)"
-        />
+        arcsData={arcs}
+        arcColor="color"
+        arcDashLength="dashLength"
+        arcDashGap="dashGap"
+        arcDashAnimateTime="dashAnimateTime"
+        arcStroke="stroke"
 
-        {/* Orbit Rings */}
-        {[1, 2, 3].map((ring) => (
-          <circle
-            key={`orbit-${ring}`}
-            cx="400"
-            cy="300"
-            r={180 + ring * 20}
-            fill="none"
-            stroke="#00f5ff"
-            strokeWidth="0.5"
-            opacity="0.2"
-            strokeDasharray="5,5"
-          />
-        ))}
+        ringsData={ringsData}
+        ringColor="color"
+        ringMaxRadius="maxR"
+        ringPropagationSpeed="propagationSpeed"
+        ringRepeatPeriod="repeatPeriod"
+        atmosphereColor="#3b82f6"
+        atmosphereAltitude={0.15}
 
-        {/* Satellites with Orbits */}
-        {satellites.map((sat, idx) => {
-          const baseAngle = (idx * (Math.PI * 2)) / satellites.length;
-          const timeOffset = Date.now() * 0.0001 + idx;
-          const angle = baseAngle + timeOffset;
+        labelsData={GROUND_STATIONS}
+        labelLat="lat"
+        labelLng="lng"
+        labelText="name"
+        labelSize={1.5}
+        labelDotRadius={0.5}
+        labelColor={() => '#06b6d4'}
+      />
 
-          const orbitRadius = 220;
-          const x = 400 + Math.cos(angle) * orbitRadius;
-          const y = 300 + Math.sin(angle) * orbitRadius;
-
-          const colors = getColorByStatus(sat.status);
-          const isSelected = selectedSat?.id === sat.id;
-          const radius = isSelected ? 7 : sat.status === 'Critical' ? 6 : 4;
-
-          return (
-            <g key={sat.id}>
-              {/* Orbit Trail */}
-              <circle
-                cx="400"
-                cy="300"
-                r={orbitRadius}
-                fill="none"
-                stroke={colors.stroke}
-                strokeWidth="1"
-                opacity="0.15"
-                strokeDasharray="3,3"
-              />
-
-              {/* Satellite Icon */}
-              <g
-                onClick={() => onSatClick(sat)}
-                className="sat-icon"
-              >
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={radius}
-                  fill={colors.fill}
-                  opacity={isSelected ? 1 : 0.8}
-                  filter="url(#glow)"
-                >
-                  <animate
-                    attributeName="opacity"
-                    values={isSelected ? '1;1;1' : '0.8;0.5;0.8'}
-                    dur="2s"
-                    repeatCount="indefinite"
-                  />
-                </circle>
-
-                {/* Selection Ring */}
-                {isSelected && (
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r={radius + 3}
-                    fill="none"
-                    stroke={colors.stroke}
-                    strokeWidth="2"
-                    opacity="0.6"
-                  >
-                    <animate
-                      attributeName="r"
-                      values={`${radius + 3};${radius + 6};${radius + 3}`}
-                      dur="1.5s"
-                      repeatCount="indefinite"
-                    />
-                  </circle>
-                )}
-              </g>
-
-              {/* Satellite Label */}
-              <text
-                x={x + 14}
-                y={y + 4}
-                fontSize="11"
-                fill="#00f5ff"
-                opacity="0.7"
-                fontFamily="monospace"
-                fontWeight="bold"
-                className="pointer-events-none"
-              >
-                LEO-{sat.orbitSlot}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Anomaly Pins (Last 3) */}
-        {anomalies.slice(0, 3).map((anomaly) => {
-          const satIndex = satellites.findIndex((s) => s.orbitSlot === anomaly.satellite.split('-')[1]);
-          if (satIndex === -1) return null;
-
-          const baseAngle = (satIndex * (Math.PI * 2)) / satellites.length;
-          const timeOffset = Date.now() * 0.0001 + satIndex;
-          const angle = baseAngle + timeOffset;
-
-          const orbitRadius = 220;
-          const x = 400 + Math.cos(angle) * orbitRadius;
-          const y = 300 + Math.sin(angle) * orbitRadius;
-
-          const severityColor = anomaly.severity === 'Critical' ? '#ef4444' : anomaly.severity === 'Warning' ? '#facc15' : '#06b6d4';
-
-          return (
-            <g key={anomaly.id}>
-              <circle
-                cx={x}
-                cy={y}
-                r="10"
-                fill="none"
-                stroke={severityColor}
-                strokeWidth="2"
-                opacity="0.7"
-                strokeDasharray="2,2"
-              >
-                <animate
-                  attributeName="r"
-                  values="10;14;10"
-                  dur="2s"
-                  repeatCount="indefinite"
-                />
-              </circle>
-              <text
-                x={x}
-                y={y + 4}
-                fontSize="9"
-                fill={severityColor}
-                textAnchor="middle"
-                fontFamily="monospace"
-                fontWeight="bold"
-                opacity="0.8"
-                className="pointer-events-none"
-              >
-                !
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-
-      {/* Legend */}
-      <div className="absolute bottom-4 left-4 text-xs space-y-1">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-cyan-400" />
-          <span className="text-cyan-400/80">Nominal</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-amber-400" />
-          <span className="text-amber-400/80">Degraded</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-red-400" />
-          <span className="text-red-400/80">Critical</span>
-        </div>
+      {/* Overlay UI */}
+      <div className="absolute top-4 right-4 bg-slate-900/80 backdrop-blur border border-slate-700 p-2 rounded text-xs text-slate-300">
+        <div>Total Satellites: {satellites.length}</div>
+        <div>Active Anomalies: {anomalies.length}</div>
+        <div>Ground Stations: {GROUND_STATIONS.length}</div>
       </div>
     </div>
   );
