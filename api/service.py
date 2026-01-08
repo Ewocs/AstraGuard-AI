@@ -39,6 +39,11 @@ from anomaly.anomaly_detector import detect_anomaly, load_model
 from classifier.fault_classifier import classify
 from core.component_health import get_health_monitor
 from memory_engine.memory_store import AdaptiveMemoryStore
+from security_engine.predictive_maintenance import (
+    get_predictive_maintenance_engine,
+    TimeSeriesData,
+    PredictionResult
+)
 from fastapi.responses import Response
 from core.metrics import get_metrics_text, get_metrics_content_type
 import numpy as np
@@ -69,6 +74,7 @@ state_machine = None
 policy_loader = None
 phase_aware_handler = None
 memory_store = None
+predictive_engine = None
 latest_telemetry_data = None # Store latest telemetry for dashboard
 anomaly_history = deque(maxlen=MAX_ANOMALY_HISTORY_SIZE)  # Bounded deque prevents memory exhaustion
 active_faults = {} # Stores active chaos experiments: {fault_type: expiration_timestamp}
@@ -82,7 +88,7 @@ class ChaosRequest(BaseModel):
 
 def initialize_components():
     """Initialize application components (called on startup or in tests)."""
-    global state_machine, policy_loader, phase_aware_handler, memory_store
+    global state_machine, policy_loader, phase_aware_handler, memory_store, predictive_engine
 
     if state_machine is None:
         state_machine = StateMachine()
@@ -92,6 +98,8 @@ def initialize_components():
         phase_aware_handler = PhaseAwareAnomalyHandler(state_machine, policy_loader)
     if memory_store is None:
         memory_store = AdaptiveMemoryStore()
+    if predictive_engine is None:
+        predictive_engine = await get_predictive_maintenance_engine(memory_store)
 
 
 def _check_credential_security():
@@ -420,6 +428,45 @@ async def _process_telemetry(telemetry: TelemetryInput, request_start: float) ->
 
     # Classify fault type
     anomaly_type = classify(data)
+
+    # Predictive Maintenance: Add training data and check for predictions
+    predictive_actions = []
+    if predictive_engine:
+        try:
+            # Create time-series data point
+            ts_data = TimeSeriesData(
+                timestamp=datetime.now(),
+                cpu_usage=telemetry.cpu_usage or 0.0,
+                memory_usage=telemetry.memory_usage or 0.0,
+                network_latency=telemetry.network_latency or 0.0,
+                disk_io=telemetry.disk_io or 0.0,
+                error_rate=telemetry.error_rate or 0.0,
+                response_time=telemetry.response_time or 0.0,
+                active_connections=telemetry.active_connections or 0,
+                failure_occurred=is_anomaly
+            )
+
+            # Add training data
+            await predictive_engine.add_training_data(ts_data)
+
+            # Check for failure predictions
+            predictions = await predictive_engine.predict_failures(ts_data)
+
+            if predictions:
+                logger.info(f"Predictive maintenance: {len(predictions)} failure predictions made")
+
+                # Trigger preventive actions
+                actions = await predictive_engine.trigger_preventive_actions(predictions)
+                predictive_actions = actions
+
+                # Log predictions for monitoring
+                for prediction in predictions:
+                    logger.warning(f"PREDICTED FAILURE: {prediction.failure_type.value} "
+                                 f"at {prediction.predicted_time} (prob: {prediction.probability:.2f})")
+
+        except Exception as e:
+            logger.error(f"Predictive maintenance failed: {e}")
+            # Don't fail the request if predictive maintenance fails
 
     # Get phase-aware decision if anomaly detected
     if is_anomaly:
@@ -818,6 +865,122 @@ async def get_replay_session(incident_type: str = "VOLTAGE_SPIKE"):
         })
         
     return {"incident": incident_type, "frames": replay_data}
+
+
+# ============================================================================
+# Predictive Maintenance Endpoints
+# ============================================================================
+
+@app.post("/api/v1/predictive/train")
+async def train_predictive_models():
+    """
+    Train predictive maintenance models using collected telemetry data.
+    """
+    if not predictive_engine:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Predictive maintenance engine not initialized"
+        )
+
+    try:
+        # Train models
+        metrics = await predictive_engine.train_models()
+
+        return {
+            "status": "training_completed",
+            "metrics": metrics,
+            "timestamp": datetime.now()
+        }
+
+    except Exception as e:
+        logger.error(f"Model training failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Model training failed: {str(e)}"
+        )
+
+@app.get("/api/v1/predictive/status")
+async def get_predictive_status():
+    """
+    Get the status of the predictive maintenance system.
+    """
+    if not predictive_engine:
+        return {
+            "status": "not_initialized",
+            "message": "Predictive maintenance engine not available"
+        }
+
+    try:
+        # Get basic stats
+        training_data_count = len(predictive_engine.training_data)
+
+        return {
+            "status": "active",
+            "training_data_points": training_data_count,
+            "models_trained": len(predictive_engine.models),
+            "last_prediction": getattr(predictive_engine, '_last_prediction_time', None)
+        }
+
+    except Exception as e:
+        logger.error(f"Status check failed: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+@app.post("/api/v1/predictive/predict")
+async def get_predictions(telemetry: TelemetryInput):
+    """
+    Get failure predictions for current telemetry data.
+    """
+    if not predictive_engine:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Predictive maintenance engine not initialized"
+        )
+
+    try:
+        # Create time-series data
+        ts_data = TimeSeriesData(
+            timestamp=datetime.now(),
+            cpu_usage=telemetry.cpu_usage or 0.0,
+            memory_usage=telemetry.memory_usage or 0.0,
+            network_latency=telemetry.network_latency or 0.0,
+            disk_io=telemetry.disk_io or 0.0,
+            error_rate=telemetry.error_rate or 0.0,
+            response_time=telemetry.response_time or 0.0,
+            active_connections=telemetry.active_connections or 0,
+            failure_occurred=False  # We're predicting, not reporting actual failure
+        )
+
+        # Get predictions
+        predictions = await predictive_engine.predict_failures(ts_data)
+
+        # Convert to serializable format
+        prediction_data = []
+        for pred in predictions:
+            prediction_data.append({
+                "failure_type": pred.failure_type.value,
+                "probability": pred.probability,
+                "predicted_time": pred.predicted_time.isoformat(),
+                "confidence": pred.confidence,
+                "features_used": pred.features_used,
+                "model_used": pred.model_used.value,
+                "preventive_actions": pred.preventive_actions
+            })
+
+        return {
+            "predictions": prediction_data,
+            "timestamp": datetime.now()
+        }
+
+    except Exception as e:
+        logger.error(f"Prediction failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Prediction failed: {str(e)}"
+        )
+
 
 if __name__ == "__main__":
     import uvicorn

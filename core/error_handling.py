@@ -67,6 +67,11 @@ class MemoryEngineError(AstraGuardException):
     pass
 
 
+class PredictiveMaintenanceError(AstraGuardException):
+    """Raised when predictive maintenance operations fail."""
+    pass
+
+
 # ============================================================================
 # Error Classification & Handling
 # ============================================================================
