@@ -35,12 +35,15 @@ import { ReplayOverlay } from '../components/replay/ReplayOverlay';
 import { EncryptionSpectrogram } from '../components/security/EncryptionSpectrogram';
 import { GlitchOverlay } from '../components/effects/GlitchOverlay';
 import { SpaceWeatherAlert } from '../components/effects/SpaceWeatherAlert';
+import { RedPhoneReset } from '../components/controls/RedPhoneReset';
+import { DashboardDimOverlay } from '../components/effects/DashboardDimOverlay';
 
 const DashboardContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'mission' | 'systems' | 'chaos' | 'uplink' | 'vault' | 'diagnostics'>('mission');
   const [selectedAnomalyForAnalysis, setSelectedAnomalyForAnalysis] = useState<AnomalyEvent | null>(null);
-  const { isConnected, togglePlay, isReplayMode, isBattleMode, setBattleMode, spaceWeather, distortionIntensity, isGeomagneticStorm } = useDashboard();
+  const { isConnected, togglePlay, isReplayMode, isBattleMode, setBattleMode, spaceWeather, distortionIntensity, isGeomagneticStorm, executeSystemReset } = useDashboard();
   const [showSpaceWeatherAlert, setShowSpaceWeatherAlert] = useState(false);
+  const [isRedPhoneCoverOpen, setIsRedPhoneCoverOpen] = useState(false);
   const mission = { ...dashboardData.mission, aiHealth: (dashboardData as any).aiHealth, achievements: (dashboardData as any).achievements } as MissionState;
   const [showPalette, setShowPalette] = useState(false);
 
@@ -136,6 +139,7 @@ const DashboardContent: React.FC = () => {
           onDismiss={() => setShowSpaceWeatherAlert(false)}
         />
       )}
+      <DashboardDimOverlay isActive={isRedPhoneCoverOpen} />
       <CommandPalette
         isOpen={showPalette}
         onClose={() => setShowPalette(false)}
@@ -143,6 +147,11 @@ const DashboardContent: React.FC = () => {
       />
       <RemediationDrawer />
       <DashboardHeader data={mission} />
+
+      {/* Red Phone Reset Button */}
+      <div className="fixed top-6 right-6 z-50">
+        <RedPhoneReset onResetConfirm={executeSystemReset} />
+      </div>
 
       <div className="flex min-h-screen pt-[100px] lg:pt-[80px] flex-col">
         <nav className="sticky top-[100px] lg:top-[80px] z-20 bg-black/80 backdrop-blur-xl border-b border-teal-500/30 px-6 flex flex-col md:flex-row md:items-center justify-between flex-shrink-0 mb-4" role="tablist">

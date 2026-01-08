@@ -74,6 +74,9 @@ interface ContextValue {
     spaceWeather: SpaceWeatherData;
     distortionIntensity: number;
     isGeomagneticStorm: boolean;
+    // System Reset
+    executeSystemReset: () => void;
+    isResetInProgress: boolean;
 }
 
 const DashboardContext = createContext<ContextValue | undefined>(undefined);
@@ -138,6 +141,20 @@ export const DashboardProvider: React.FC<{ children: ReactNode }> = ({ children 
         isCompromised: false,
         attackType: null,
     });
+
+    // System Reset State
+    const [isResetInProgress, setIsResetInProgress] = useState(false);
+
+    const executeSystemReset = () => {
+        setIsResetInProgress(true);
+        // Simulate system reset (in production, this would call backend API)
+        setTimeout(() => {
+            console.log('System reset executed');
+            setIsResetInProgress(false);
+            // Reset all state to defaults
+            window.location.reload();
+        }, 2000);
+    };
 
     const unlockAchievement = (id: string) => {
         setAchievements(prev => {
@@ -380,6 +397,8 @@ export const DashboardProvider: React.FC<{ children: ReactNode }> = ({ children 
         spaceWeather,
         distortionIntensity,
         isGeomagneticStorm,
+        executeSystemReset,
+        isResetInProgress,
     };
 
     return (
