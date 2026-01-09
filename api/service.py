@@ -38,6 +38,8 @@ from core.component_health import get_health_monitor
 from memory_engine.memory_store import AdaptiveMemoryStore
 from fastapi.responses import Response
 from core.metrics import get_metrics_text, get_metrics_content_type
+from core.rate_limiter import RateLimiter, RateLimitMiddleware, get_rate_limit_config
+from backend.redis_client import RedisClient
 import numpy as np
 
 # Observability imports
@@ -68,6 +70,11 @@ phase_aware_handler = None
 memory_store = None
 anomaly_history = deque(maxlen=MAX_ANOMALY_HISTORY_SIZE)  # Bounded deque prevents memory exhaustion
 start_time = time.time()
+
+# Rate limiting
+redis_client = None
+telemetry_limiter = None
+api_limiter = None
 
 
 def initialize_components():
@@ -164,11 +171,44 @@ def _check_credential_security():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
+    global redis_client, telemetry_limiter, api_limiter
+
     # Security: Check credentials at startup
     _check_credential_security()
 
     # Initialize components
     initialize_components()
+
+    # Initialize rate limiting
+    try:
+        redis_client = RedisClient()
+        await redis_client.connect()
+
+        # Get rate limit configurations
+        rate_configs = get_rate_limit_config()
+
+        # Create rate limiters
+        telemetry_limiter = RateLimiter(
+            redis_client.redis,
+            "telemetry",
+            rate_configs["telemetry"][0],  # rate_per_second
+            rate_configs["telemetry"][1]   # burst_capacity
+        )
+        api_limiter = RateLimiter(
+            redis_client.redis,
+            "api",
+            rate_configs["api"][0],  # rate_per_second
+            rate_configs["api"][1]   # burst_capacity
+        )
+
+        # Add rate limiting middleware after initialization
+        if telemetry_limiter and api_limiter:
+            app.add_middleware(RateLimitMiddleware, telemetry_limiter=telemetry_limiter, api_limiter=api_limiter)
+
+        print("✅ Rate limiting initialized successfully")
+    except Exception as e:
+        print(f"⚠️  Warning: Rate limiting initialization failed: {e}")
+        print("Rate limiting will be disabled")
 
     # Initialize observability (if available)
     if OBSERVABILITY_ENABLED:
@@ -188,6 +228,8 @@ async def lifespan(app: FastAPI):
     # Cleanup
     if memory_store:
         memory_store.save()
+    if redis_client:
+        await redis_client.close()
 
 
 # Initialize FastAPI app
@@ -215,6 +257,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "Accept"],
 )
+
+# Rate limiting middleware will be added in lifespan after initialization
 
 security = HTTPBasic()
 
