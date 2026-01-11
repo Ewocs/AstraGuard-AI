@@ -14,6 +14,11 @@
   [![Node.js](https://img.shields.io/badge/node.js-16+-6DA55F?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
   [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 
+  ---
+  
+ # [![whatsapp](https://img.shields.io/badge/whatsapp-005571?style=for-the-badge&logo=whatsapp)](https://chat.whatsapp.com/Ka6WKpDdKIxInvpLBO1nCB)
+  
+
   <p align="center">
     <a href="docs/TECHNICAL.md"><strong>📚 Documentation</strong></a> •
     <a href="docs/TECHNICAL_REPORT.md"><strong>📄 Technical Report</strong></a> •
@@ -24,7 +29,7 @@
   <p align="center">
     <a href=".github/ISSUE_TEMPLATE/bug_report.yml">🐛 Report Bug</a> •
     <a href=".github/ISSUE_TEMPLATE/feature_request.yml">✨ Request Feature</a> •
-    <a href="https://chat.whatsapp.com/HZXk0vo62945S33qTXheON">💬 Join WhatsApp Group</a>
+    <a href="https://chat.whatsapp.com/Ka6WKpDdKIxInvpLBO1nCB">💬 Join WhatsApp Group</a>
   </p>
 
   ---
