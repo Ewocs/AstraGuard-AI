@@ -30,10 +30,24 @@ ENV/
 # IDEs
 .vscode/
 .idea/
-# Environment Variables
+
+# Environment Variables and Secrets
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+.env.development
+secrets/
+config/secrets.json
+config/api_keys.json
+
+# Logs and Audit Files
+logs/
+*.log
+audit.log
+error_log.txt
+build_log.txt
 
 # Test Coverage
 .coverage
@@ -46,4 +60,32 @@ coverage*.xml
 node_modules/
 .next/
 .turbo/
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary Files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Build Artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+
 !**/.vscode/settings.json
