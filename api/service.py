@@ -9,16 +9,14 @@ import time
 from datetime import datetime, timedelta
 from typing import List
 from collections import deque
-from fastapi import FastAPI, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi import FastAPI, HTTPException, status, Depends
+from fastapi import FastAPI, HTTPException, status, Depends, Request
 from contextlib import asynccontextmanager
 import secrets
 from pydantic import BaseModel
 
 # Import centralized secrets management
 from core.secrets import get_secret, get_secret_masked
+from core.audit_logger import get_audit_logger, AuditEventType
 
 
 from api.models import (
@@ -243,6 +241,13 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"Warning: Observability initialization failed: {e}")
 
+    # Initialize audit logging
+    try:
+        audit_logger = get_audit_logger()
+        print("✅ Audit logging initialized successfully")
+    except Exception as e:
+        print(f"⚠️  Warning: Audit logging initialization failed: {e}")
+
     yield
 
     # Cleanup
@@ -330,6 +335,11 @@ def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Basic"},
         )
+    
+    # Audit logging
+    audit_logger = get_audit_logger()
+    audit_logger.log_auth_success(credentials.username, "unknown", "basic")
+    
     return credentials.username
 
 
@@ -503,7 +513,7 @@ async def metrics(username: str = Depends(get_current_username)):
 
 
 @app.post("/api/v1/telemetry", response_model=AnomalyResponse, status_code=status.HTTP_200_OK)
-async def submit_telemetry(telemetry: TelemetryInput, api_key: APIKey = Depends(get_api_key)):
+async def submit_telemetry(telemetry: TelemetryInput, request: Request, api_key: APIKey = Depends(get_api_key)):
     """
     Submit single telemetry point for anomaly detection.
 
@@ -544,6 +554,11 @@ async def submit_telemetry(telemetry: TelemetryInput, api_key: APIKey = Depends(
                 confidence=response.confidence,
                 instance_id="telemetry"
             )
+
+        # Audit logging
+        audit_logger = get_audit_logger()
+        client_ip = request.client.host if request.client else "unknown"
+        audit_logger.log_api_access(api_key.user, client_ip, "/api/v1/telemetry", "POST", 200)
 
         return response
 
@@ -788,15 +803,15 @@ async def get_phase(api_key: APIKey = Depends(get_api_key)):
 
 
 @app.post("/api/v1/phase", response_model=PhaseUpdateResponse)
-async def update_phase(request: PhaseUpdateRequest, api_key: APIKey = Depends(require_permission("write"))):
+async def update_phase(request_body: PhaseUpdateRequest, request: Request, api_key: APIKey = Depends(require_permission("write"))):
     """Update mission phase.
 
     Requires API key authentication with 'write' permission.
     """
     try:
-        target_phase = MissionPhase(request.phase.value)
+        target_phase = MissionPhase(request_body.phase.value)
 
-        if request.force:
+        if request_body.force:
             # Force transition (e.g., emergency SAFE_MODE)
             if target_phase == MissionPhase.SAFE_MODE:
                 result = state_machine.force_safe_mode()
@@ -805,6 +820,11 @@ async def update_phase(request: PhaseUpdateRequest, api_key: APIKey = Depends(re
         else:
             # Normal transition with validation
             result = state_machine.set_phase(target_phase)
+
+        # Audit logging
+        audit_logger = get_audit_logger()
+        client_ip = request.client.host if request.client else "unknown"
+        audit_logger.log_phase_change(api_key.user, client_ip, result['previous_phase'], result['new_phase'], request_body.force)
 
         return PhaseUpdateResponse(
             success=result['success'],
@@ -877,9 +897,16 @@ class ChaosRequest(BaseModel):
 
 
 @app.post("/api/v1/chaos/inject")
-async def inject_fault(request: ChaosRequest, api_key: APIKey = Depends(require_permission("admin"))):
+async def inject_fault(request_body: ChaosRequest, request: Request, api_key: APIKey = Depends(require_permission("admin"))):
     """Trigger a chaos experiment."""
-    return inject_chaos_fault(request.fault_type, request.duration_seconds)
+    result = inject_chaos_fault(request_body.fault_type, request_body.duration_seconds)
+    
+    # Audit logging
+    audit_logger = get_audit_logger()
+    client_ip = request.client.host if request.client else "unknown"
+    audit_logger.log_chaos_injection(api_key.user, client_ip, request_body.fault_type, request_body.duration_seconds)
+    
+    return result
 
 
 
