@@ -12,6 +12,9 @@ from datetime import datetime
 from typing import Dict, Optional, List
 from threading import Lock, RLock
 
+# Import resource monitor for system health integration
+from core.resource_monitor import get_resource_monitor
+
 logger = logging.getLogger(__name__)
 
 
@@ -220,7 +223,85 @@ class SystemHealthMonitor:
             Dictionary mapping component names to their health dicts
         """
         with self._component_lock:
-            return {name: health.to_dict() for name, health in self._components.items()}
+            health_data = {name: health.to_dict() for name, health in self._components.items()}
+            
+            # Add resource monitoring as a system component
+            try:
+                resource_monitor = get_resource_monitor()
+                resource_status = resource_monitor.check_resource_health()
+                
+                # Map resource status to component health status
+                resource_health_status = HealthStatus.HEALTHY
+                if resource_status.get('overall') == 'critical':
+                    resource_health_status = HealthStatus.FAILED
+                elif resource_status.get('overall') == 'warning':
+                    resource_health_status = HealthStatus.DEGRADED
+                
+                # Get current metrics for metadata
+                metrics = resource_monitor.get_current_metrics()
+                
+                resource_component = ComponentHealth(
+                    name="system_resources",
+                    status=resource_health_status,
+                    last_updated=datetime.now(),
+                    metadata={
+                        "cpu_percent": round(metrics.cpu_percent, 1),
+                        "memory_percent": round(metrics.memory_percent, 1),
+                        "disk_percent": round(metrics.disk_usage_percent, 1),
+                        "memory_available_mb": round(metrics.memory_available_mb, 0),
+                        "resource_status": resource_status
+                    }
+                )
+                
+                health_data["system_resources"] = resource_component.to_dict()
+                
+            except Exception as e:
+                logger.warning(f"Failed to get resource health: {e}")
+                # Add resource component with unknown status if monitoring fails
+                resource_component = ComponentHealth(
+                    name="system_resources",
+                    status=HealthStatus.UNKNOWN,
+                    last_updated=datetime.now(),
+                    last_error=str(e),
+                    metadata={"error": "Resource monitoring unavailable"}
+                )
+                health_data["system_resources"] = resource_component.to_dict()
+            
+            return health_data
+    
+    def get_resource_health(self) -> Dict:
+        """
+        Get detailed resource health information.
+        
+        Returns:
+            Dictionary with resource metrics and health status
+        """
+        try:
+            resource_monitor = get_resource_monitor()
+            resource_status = resource_monitor.check_resource_health()
+            current_metrics = resource_monitor.get_current_metrics()
+            
+            return {
+                "status": resource_status.get('overall', 'unknown'),
+                "metrics": current_metrics.to_dict(),
+                "thresholds": {
+                    "cpu_warning": resource_monitor.thresholds.cpu_warning,
+                    "cpu_critical": resource_monitor.thresholds.cpu_critical,
+                    "memory_warning": resource_monitor.thresholds.memory_warning,
+                    "memory_critical": resource_monitor.thresholds.memory_critical,
+                    "disk_warning": resource_monitor.thresholds.disk_warning,
+                    "disk_critical": resource_monitor.thresholds.disk_critical,
+                },
+                "component_status": resource_status,
+                "timestamp": datetime.now().isoformat()
+            }
+        except Exception as e:
+            logger.error(f"Failed to get resource health details: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
     
     def get_system_status(self) -> Dict:
         """

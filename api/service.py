@@ -758,6 +758,17 @@ async def get_status(api_key: APIKey = Depends(get_api_key)):
     )
 
 
+@app.get("/api/v1/resources/health")
+async def get_resource_health(api_key: APIKey = Depends(get_api_key)):
+    """Get detailed system resource health information.
+
+    Requires API key authentication with 'read' permission.
+    Returns CPU, memory, disk usage, and health status.
+    """
+    health_monitor = get_health_monitor()
+    return health_monitor.get_resource_health()
+
+
 @app.get("/api/v1/phase", response_model=dict)
 async def get_phase(api_key: APIKey = Depends(get_api_key)):
     """Get current mission phase.
