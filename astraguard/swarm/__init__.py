@@ -24,6 +24,8 @@ from astraguard.swarm.types import (
     MessageAck,
     IntentMessage,
     PriorityEnum,
+    ActionScope,
+    Policy,
 )
 from astraguard.swarm.bus import SwarmMessageBus
 from astraguard.swarm.compressor import StateCompressor, CompressionStats
@@ -33,6 +35,8 @@ from astraguard.swarm.intent_broadcaster import IntentBroadcaster, IntentStats
 from astraguard.swarm.reliable_delivery import ReliableDelivery, SentMsg, DeliveryStats, AckStatus
 from astraguard.swarm.bandwidth_governor import BandwidthGovernor, TokenBucket, MessagePriority, BandwidthStats
 from astraguard.swarm.leader_election import LeaderElection, ElectionState, ElectionMetrics
+from astraguard.swarm.consensus import ConsensusEngine, ProposalRequest, ProposalState, ConsensusMetrics, NotLeaderError
+from astraguard.swarm.policy_arbiter import PolicyArbiter, PolicyArbiterMetrics, ConflictResolution
 
 __all__ = [
     # Models (Issue #397)
@@ -52,6 +56,9 @@ __all__ = [
     # Intent types (Issue #402)
     "IntentMessage",
     "PriorityEnum",
+    # Policy types (Issue #407)
+    "Policy",
+    "ActionScope",
     # Message bus (Issue #398)
     "SwarmMessageBus",
     # Compression (Issue #399)
@@ -80,4 +87,14 @@ __all__ = [
     "LeaderElection",
     "ElectionState",
     "ElectionMetrics",
+    # Consensus (Issue #406)
+    "ConsensusEngine",
+    "ProposalRequest",
+    "ProposalState",
+    "ConsensusMetrics",
+    "NotLeaderError",
+    # Policy Arbitration (Issue #407)
+    "PolicyArbiter",
+    "PolicyArbiterMetrics",
+    "ConflictResolution",
 ]
