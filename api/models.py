@@ -8,6 +8,13 @@ from datetime import datetime
 from enum import Enum
 
 
+class UserRole(str, Enum):
+    """User roles with hierarchical permissions."""
+    ADMIN = "admin"      # Full system access including user management
+    OPERATOR = "operator"  # Full operational access (telemetry, phase changes)
+    ANALYST = "analyst"   # Read-only access (status, history, monitoring)
+
+
 class MissionPhaseEnum(str, Enum):
     """Mission phase enumeration."""
     LAUNCH = "LAUNCH"
