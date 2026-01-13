@@ -249,7 +249,7 @@ class AdaptiveMemoryStore:
         }
 
     # Private helper methods
-
+   #memory storage
     def _temporal_weight(self, event: MemoryEvent) -> float:
         """Calculate temporal weight using exponential decay."""
         age_hours = event.age_seconds() / 3600
